@@ -519,6 +519,18 @@
       padding:7px 11px;
     }
 
+    .btn-mode{
+      color:#344054;
+      background:#eef2f7;
+      border:1px solid #d9e2ee;
+    }
+
+    .btn-mode.active{
+      color:#fff;
+      background:linear-gradient(135deg,var(--navy-2),var(--blue));
+      box-shadow:0 0 0 4px rgba(37,99,235,.12);
+    }
+
     .btn-annotate{
       color:#fff;
       background:linear-gradient(135deg,#dc2626,#b91c1c);
@@ -526,6 +538,26 @@
 
     .btn-annotate.active{
       box-shadow:0 0 0 4px rgba(220,38,38,.16);
+    }
+
+    .auto-pan-option{
+      display:flex;
+      align-items:center;
+      gap:7px;
+      width:100%;
+      margin:2px 0 0;
+      color:#475467;
+      font-size:9px;
+      font-weight:600;
+      cursor:pointer;
+    }
+
+    .auto-pan-option input{
+      width:14px;
+      min-height:auto;
+      height:14px;
+      margin:0;
+      accent-color:var(--blue);
     }
 
     .btn-tool{
@@ -1061,7 +1093,7 @@
   </style>
 
 </head>
-<body data-app-version="9.1-transparent-annotation-fix">
+<body data-app-version="9.2-pan-draw-mode">
 
 <header class="app-header">
   <div class="header-inner">
@@ -1207,9 +1239,15 @@
 
       <div class="annotation-toolbar">
         <span class="tool-label">Alat Menanda Surat</span>
-        <button type="button" class="btn-annotate" id="annotateBtn" disabled>
-          Aktifkan Conteng
+
+        <button type="button" class="btn-mode active" id="scrollModeBtn" disabled>
+          Gerak / Skrol
         </button>
+
+        <button type="button" class="btn-annotate" id="annotateBtn" disabled>
+          Conteng
+        </button>
+
         <button type="button" class="btn-tool" id="undoAnnotationBtn" disabled>
           Undur
         </button>
@@ -1225,8 +1263,13 @@
           <input type="range" id="penSize" min="2" max="10" value="4">
         </label>
 
+        <label class="auto-pan-option">
+          <input type="checkbox" id="autoReturnToScroll" checked>
+          Pada telefon, kembali ke mod Gerak / Skrol selepas satu contengan
+        </label>
+
         <div class="annotation-hint" id="annotationHint">
-          Aktifkan mod conteng untuk membulat, menggaris atau menanda bahagian yang perlu dibetulkan.
+          Mod Gerak / Skrol aktif. Gerakkan halaman seperti biasa, kemudian pilih Conteng apabila hendak menanda.
         </div>
       </div>
 
@@ -1288,7 +1331,7 @@
 </main>
 
 <footer class="app-footer">
-  <span>Sistem Semakan Surat SP • Sektor Pembelajaran, Jabatan Pendidikan Negeri Pahang • 2026 • Versi 9.1</span>
+  <span>Sistem Semakan Surat SP • Sektor Pembelajaran, Jabatan Pendidikan Negeri Pahang • 2026 • Versi 9.2</span>
 </footer>
 
 <div class="fullscreen-preview" id="fullscreenPreview" aria-hidden="true">
@@ -1346,6 +1389,7 @@
     fullscreenZoom: 1,
     fullscreenRendered: false,
     annotationMode: false,
+    interactionMode: 'pan',
     activeAnnotationPage: 1,
     annotations: {},
     currentStroke: null
@@ -1438,11 +1482,13 @@
   const zoomInBtn = document.getElementById('zoomInBtn');
   const zoomValue = document.getElementById('zoomValue');
 
+  const scrollModeBtn = document.getElementById('scrollModeBtn');
   const annotateBtn = document.getElementById('annotateBtn');
   const undoAnnotationBtn = document.getElementById('undoAnnotationBtn');
   const clearPageBtn = document.getElementById('clearPageBtn');
   const clearAllBtn = document.getElementById('clearAllBtn');
   const penSize = document.getElementById('penSize');
+  const autoReturnToScroll = document.getElementById('autoReturnToScroll');
   const annotationHint = document.getElementById('annotationHint');
 
   muatSenaraiPenyemak();
@@ -1508,7 +1554,8 @@
   zoomOutBtn.addEventListener('click', () => ubahZum(-0.15));
   zoomInBtn.addEventListener('click', () => ubahZum(0.15));
 
-  annotateBtn.addEventListener('click', toggleAnnotationMode);
+  scrollModeBtn.addEventListener('click', () => setInteractionMode('pan'));
+  annotateBtn.addEventListener('click', () => setInteractionMode('draw'));
   undoAnnotationBtn.addEventListener('click', undoAnnotation);
   clearPageBtn.addEventListener('click', clearCurrentPageAnnotations);
   clearAllBtn.addEventListener('click', clearAllAnnotations);
@@ -1604,6 +1651,7 @@
       state.fullscreenZoom = 1;
       state.fullscreenRendered = false;
       state.annotationMode = false;
+      state.interactionMode = 'pan';
       state.activeAnnotationPage = 1;
       state.annotations = {};
       state.currentStroke = null;
@@ -1639,7 +1687,9 @@
       await renderPdfPages(state.pdfDocument, pdfPreview, false);
 
       fullPreviewBtn.disabled = false;
+      scrollModeBtn.disabled = false;
       annotateBtn.disabled = false;
+      setInteractionMode('pan');
       kemasKiniButangAnotasi();
 
       state.extractedText = await extractPdfText(state.pdfDocument);
@@ -1733,18 +1783,18 @@
     }
   }
 
-  function toggleAnnotationMode() {
+  function setInteractionMode(mode) {
     if (!state.pdfDocument) return;
 
-    state.annotationMode = !state.annotationMode;
+    state.interactionMode = mode === 'draw' ? 'draw' : 'pan';
+    state.annotationMode = state.interactionMode === 'draw';
+
+    scrollModeBtn.classList.toggle('active', !state.annotationMode);
     annotateBtn.classList.toggle('active', state.annotationMode);
-    annotateBtn.textContent = state.annotationMode
-      ? 'Tutup Mod Conteng'
-      : 'Aktifkan Conteng';
 
     annotationHint.textContent = state.annotationMode
-      ? 'Mod conteng aktif. Gunakan jari atau tetikus untuk menanda surat. Tatal halaman selepas menutup mod conteng.'
-      : 'Aktifkan mod conteng untuk membulat, menggaris atau menanda bahagian yang perlu dibetulkan.';
+      ? 'Mod Conteng aktif. Tanda bahagian yang salah. Untuk menggerakkan halaman, pilih Gerak / Skrol.'
+      : 'Mod Gerak / Skrol aktif. Gerakkan halaman seperti biasa, kemudian pilih Conteng apabila hendak menanda.';
 
     pdfPreview.querySelectorAll('.annotation-layer').forEach(layer => {
       layer.classList.toggle('active', state.annotationMode);
@@ -1784,6 +1834,7 @@
     const point = dapatKoordinatNormal(canvas, event);
     state.currentStroke = {
       pageNo,
+      pointerType: event.pointerType || 'mouse',
       color: '#dc2626',
       widthNorm: Number(penSize.value) / canvas.getBoundingClientRect().width,
       points: [point]
@@ -1825,7 +1876,15 @@
     );
     if (canvas) lukisSemulaAnotasi(canvas, pageNo);
 
-    kemasKiniButangAnotasi();
+    const gunaSentuhan = stroke.pointerType === 'touch';
+
+    if (gunaSentuhan && autoReturnToScroll.checked) {
+      setInteractionMode('pan');
+      annotationHint.textContent =
+        'Tanda telah disimpan. Mod Gerak / Skrol diaktifkan semula supaya halaman boleh digerakkan.';
+    } else {
+      kemasKiniButangAnotasi();
+    }
   }
 
   function lukisSemulaAnotasi(canvas, pageNo, liveStroke = null) {
@@ -1908,6 +1967,7 @@
     const hasPdf = Boolean(state.pdfDocument);
     const pageStrokes = state.annotations[state.activeAnnotationPage] || [];
 
+    scrollModeBtn.disabled = !hasPdf;
     annotateBtn.disabled = !hasPdf;
     undoAnnotationBtn.disabled = !hasPdf || pageStrokes.length === 0;
     clearPageBtn.disabled = !hasPdf || pageStrokes.length === 0;
@@ -2447,14 +2507,16 @@
     fullscreenPdfFrame.innerHTML = '';
     zoomValue.textContent = '100%';
     fullPreviewBtn.disabled = true;
+    scrollModeBtn.disabled = true;
+    scrollModeBtn.classList.add('active');
     annotateBtn.disabled = true;
     annotateBtn.classList.remove('active');
-    annotateBtn.textContent = 'Aktifkan Conteng';
+    annotateBtn.textContent = 'Conteng';
     undoAnnotationBtn.disabled = true;
     clearPageBtn.disabled = true;
     clearAllBtn.disabled = true;
     annotationHint.textContent =
-      'Aktifkan mod conteng untuk membulat, menggaris atau menanda bahagian yang perlu dibetulkan.';
+      'Mod Gerak / Skrol aktif. Gerakkan halaman seperti biasa, kemudian pilih Conteng apabila hendak menanda.';
     tutupPratontonPenuh();
     mappingList.innerHTML = '<div class="small">Belum ada dokumen dianalisis.</div>';
 
