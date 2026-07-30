@@ -540,6 +540,24 @@
       box-shadow:0 0 0 4px rgba(220,38,38,.16);
     }
 
+    .btn-eraser{
+      color:#344054;
+      background:linear-gradient(135deg,#f8fafc,#e5eaf1);
+      border:1px solid #cfd8e5;
+    }
+
+    .btn-eraser.active{
+      color:#fff;
+      background:linear-gradient(135deg,#475467,#1d2939);
+      box-shadow:0 0 0 4px rgba(71,84,103,.14);
+    }
+
+    .annotation-layer.erase-active{
+      pointer-events:auto;
+      touch-action:none;
+      cursor:cell;
+    }
+
     .auto-pan-option{
       display:flex;
       align-items:center;
@@ -1093,7 +1111,7 @@
   </style>
 
 </head>
-<body data-app-version="9.2-pan-draw-mode">
+<body data-app-version="9.3-manual-eraser">
 
 <header class="app-header">
   <div class="header-inner">
@@ -1248,19 +1266,25 @@
           Conteng
         </button>
 
+        <button type="button" class="btn-eraser" id="eraserBtn" disabled>
+          Pemadam Manual
+        </button>
+
         <button type="button" class="btn-tool" id="undoAnnotationBtn" disabled>
           Undur
         </button>
         <button type="button" class="btn-tool" id="clearPageBtn" disabled>
           Padam Halaman
         </button>
-        <button type="button" class="btn-tool" id="clearAllBtn" disabled>
-          Padam Semua
-        </button>
 
         <label class="pen-size-wrap">
-          Ketebalan
+          Ketebalan Pen
           <input type="range" id="penSize" min="2" max="10" value="4">
+        </label>
+
+        <label class="pen-size-wrap">
+          Saiz Pemadam
+          <input type="range" id="eraserSize" min="10" max="60" value="28">
         </label>
 
         <label class="auto-pan-option">
@@ -1269,7 +1293,7 @@
         </label>
 
         <div class="annotation-hint" id="annotationHint">
-          Mod Gerak / Skrol aktif. Gerakkan halaman seperti biasa, kemudian pilih Conteng apabila hendak menanda.
+          Mod Gerak / Skrol aktif. Pilih Conteng untuk menanda atau Pemadam Manual untuk memadam bahagian tertentu.
         </div>
       </div>
 
@@ -1331,7 +1355,7 @@
 </main>
 
 <footer class="app-footer">
-  <span>Sistem Semakan Surat SP • Sektor Pembelajaran, Jabatan Pendidikan Negeri Pahang • 2026 • Versi 9.2</span>
+  <span>Sistem Semakan Surat SP • Sektor Pembelajaran, Jabatan Pendidikan Negeri Pahang • 2026 • Versi 9.3</span>
 </footer>
 
 <div class="fullscreen-preview" id="fullscreenPreview" aria-hidden="true">
@@ -1392,7 +1416,8 @@
     interactionMode: 'pan',
     activeAnnotationPage: 1,
     annotations: {},
-    currentStroke: null
+    currentStroke: null,
+    isErasing: false
   };
 
   // Kata laluan keputusan.
@@ -1484,10 +1509,11 @@
 
   const scrollModeBtn = document.getElementById('scrollModeBtn');
   const annotateBtn = document.getElementById('annotateBtn');
+  const eraserBtn = document.getElementById('eraserBtn');
   const undoAnnotationBtn = document.getElementById('undoAnnotationBtn');
   const clearPageBtn = document.getElementById('clearPageBtn');
-  const clearAllBtn = document.getElementById('clearAllBtn');
   const penSize = document.getElementById('penSize');
+  const eraserSize = document.getElementById('eraserSize');
   const autoReturnToScroll = document.getElementById('autoReturnToScroll');
   const annotationHint = document.getElementById('annotationHint');
 
@@ -1556,9 +1582,9 @@
 
   scrollModeBtn.addEventListener('click', () => setInteractionMode('pan'));
   annotateBtn.addEventListener('click', () => setInteractionMode('draw'));
+  eraserBtn.addEventListener('click', () => setInteractionMode('erase'));
   undoAnnotationBtn.addEventListener('click', undoAnnotation);
   clearPageBtn.addEventListener('click', clearCurrentPageAnnotations);
-  clearAllBtn.addEventListener('click', clearAllAnnotations);
 
   openExternalBtn.addEventListener('click', () => {
     if (state.blobUrl) {
@@ -1786,30 +1812,70 @@
   function setInteractionMode(mode) {
     if (!state.pdfDocument) return;
 
-    state.interactionMode = mode === 'draw' ? 'draw' : 'pan';
-    state.annotationMode = state.interactionMode === 'draw';
+    const validMode = ['pan', 'draw', 'erase'].includes(mode) ? mode : 'pan';
+    state.interactionMode = validMode;
+    state.annotationMode = validMode === 'draw';
+    state.isErasing = false;
+    state.currentStroke = null;
 
-    scrollModeBtn.classList.toggle('active', !state.annotationMode);
-    annotateBtn.classList.toggle('active', state.annotationMode);
+    scrollModeBtn.classList.toggle('active', validMode === 'pan');
+    annotateBtn.classList.toggle('active', validMode === 'draw');
+    eraserBtn.classList.toggle('active', validMode === 'erase');
 
-    annotationHint.textContent = state.annotationMode
-      ? 'Mod Conteng aktif. Tanda bahagian yang salah. Untuk menggerakkan halaman, pilih Gerak / Skrol.'
-      : 'Mod Gerak / Skrol aktif. Gerakkan halaman seperti biasa, kemudian pilih Conteng apabila hendak menanda.';
+    if (validMode === 'draw') {
+      annotationHint.textContent =
+        'Mod Conteng aktif. Tanda bahagian yang salah. Pilih Gerak / Skrol untuk menggerakkan halaman.';
+    } else if (validMode === 'erase') {
+      annotationHint.textContent =
+        'Pemadam Manual aktif. Gosok pada bahagian contengan yang hendak dipadam sahaja.';
+    } else {
+      annotationHint.textContent =
+        'Mod Gerak / Skrol aktif. Pilih Conteng untuk menanda atau Pemadam Manual untuk memadam bahagian tertentu.';
+    }
 
     pdfPreview.querySelectorAll('.annotation-layer').forEach(layer => {
-      layer.classList.toggle('active', state.annotationMode);
+      layer.classList.toggle('active', validMode === 'draw');
+      layer.classList.toggle('erase-active', validMode === 'erase');
     });
 
     kemasKiniButangAnotasi();
   }
 
   function pasangEventAnotasi(canvas) {
-    canvas.addEventListener('pointerdown', mulaConteng);
-    canvas.addEventListener('pointermove', gerakConteng);
-    canvas.addEventListener('pointerup', tamatConteng);
-    canvas.addEventListener('pointercancel', tamatConteng);
+    canvas.addEventListener('pointerdown', event => {
+      if (state.interactionMode === 'draw') {
+        mulaConteng(event);
+      } else if (state.interactionMode === 'erase') {
+        mulaMemadam(event);
+      }
+    });
+
+    canvas.addEventListener('pointermove', event => {
+      if (state.interactionMode === 'draw') {
+        gerakConteng(event);
+      } else if (state.interactionMode === 'erase') {
+        gerakMemadam(event);
+      }
+    });
+
+    canvas.addEventListener('pointerup', event => {
+      if (state.interactionMode === 'draw') tamatConteng(event);
+      if (state.interactionMode === 'erase') tamatMemadam(event);
+    });
+
+    canvas.addEventListener('pointercancel', event => {
+      if (state.interactionMode === 'draw') tamatConteng(event);
+      if (state.interactionMode === 'erase') tamatMemadam(event);
+    });
+
     canvas.addEventListener('pointerleave', event => {
-      if (state.currentStroke && event.buttons === 0) tamatConteng(event);
+      if (state.interactionMode === 'draw' && state.currentStroke && event.buttons === 0) {
+        tamatConteng(event);
+      }
+
+      if (state.interactionMode === 'erase' && state.isErasing && event.buttons === 0) {
+        tamatMemadam(event);
+      }
     });
   }
 
@@ -1920,6 +1986,90 @@
     ctx.restore();
   }
 
+  function mulaMemadam(event) {
+    if (state.interactionMode !== 'erase') return;
+
+    event.preventDefault();
+    const canvas = event.currentTarget;
+    const pageNo = Number(canvas.dataset.pageNumber);
+    state.activeAnnotationPage = pageNo;
+    state.isErasing = true;
+
+    canvas.setPointerCapture?.(event.pointerId);
+    padamPadaTitik(canvas, pageNo, event);
+  }
+
+  function gerakMemadam(event) {
+    if (state.interactionMode !== 'erase' || !state.isErasing) return;
+
+    event.preventDefault();
+    const canvas = event.currentTarget;
+    const pageNo = Number(canvas.dataset.pageNumber);
+    padamPadaTitik(canvas, pageNo, event);
+  }
+
+  function tamatMemadam(event) {
+    state.isErasing = false;
+    const canvas = event.currentTarget;
+    const pageNo = Number(canvas.dataset.pageNumber);
+
+    if (canvas) lukisSemulaAnotasi(canvas, pageNo);
+    kemasKiniButangAnotasi();
+  }
+
+  function padamPadaTitik(canvas, pageNo, event) {
+    const strokes = state.annotations[pageNo] || [];
+    if (!strokes.length) return;
+
+    const point = dapatKoordinatNormal(canvas, event);
+    const radiusNorm = Number(eraserSize.value) / canvas.getBoundingClientRect().width;
+
+    const hasilBaharu = [];
+
+    strokes.forEach(stroke => {
+      const segments = pecahkanStrokeDenganPemadam(stroke, point, radiusNorm);
+      hasilBaharu.push(...segments);
+    });
+
+    state.annotations[pageNo] = hasilBaharu;
+    lukisSemulaAnotasi(canvas, pageNo);
+    kemasKiniButangAnotasi();
+  }
+
+  function pecahkanStrokeDenganPemadam(stroke, center, radiusNorm) {
+    if (!stroke.points || stroke.points.length < 2) return [];
+
+    const segments = [];
+    let current = [];
+
+    stroke.points.forEach(point => {
+      const dx = point.x - center.x;
+      const dy = point.y - center.y;
+      const dekatPemadam = Math.sqrt((dx * dx) + (dy * dy)) <= radiusNorm;
+
+      if (dekatPemadam) {
+        if (current.length >= 2) {
+          segments.push({
+            ...stroke,
+            points: current.map(p => ({ ...p }))
+          });
+        }
+        current = [];
+      } else {
+        current.push(point);
+      }
+    });
+
+    if (current.length >= 2) {
+      segments.push({
+        ...stroke,
+        points: current.map(p => ({ ...p }))
+      });
+    }
+
+    return segments;
+  }
+
   function undoAnnotation() {
     const pageNo = state.activeAnnotationPage;
     const strokes = state.annotations[pageNo] || [];
@@ -1947,18 +2097,6 @@
     kemasKiniButangAnotasi();
   }
 
-  function clearAllAnnotations() {
-    if (!adaAnotasi()) return;
-    if (!confirm('Padam semua contengan pada seluruh surat?')) return;
-
-    state.annotations = {};
-    pdfPreview.querySelectorAll('.annotation-layer').forEach(canvas => {
-      const pageNo = Number(canvas.dataset.pageNumber);
-      lukisSemulaAnotasi(canvas, pageNo);
-    });
-    kemasKiniButangAnotasi();
-  }
-
   function adaAnotasi() {
     return Object.values(state.annotations).some(strokes => strokes.length > 0);
   }
@@ -1969,9 +2107,9 @@
 
     scrollModeBtn.disabled = !hasPdf;
     annotateBtn.disabled = !hasPdf;
+    eraserBtn.disabled = !hasPdf || !adaAnotasi();
     undoAnnotationBtn.disabled = !hasPdf || pageStrokes.length === 0;
     clearPageBtn.disabled = !hasPdf || pageStrokes.length === 0;
-    clearAllBtn.disabled = !hasPdf || !adaAnotasi();
   }
 
   async function extractPdfText(pdf) {
@@ -2512,11 +2650,12 @@
     annotateBtn.disabled = true;
     annotateBtn.classList.remove('active');
     annotateBtn.textContent = 'Conteng';
+    eraserBtn.disabled = true;
+    eraserBtn.classList.remove('active');
     undoAnnotationBtn.disabled = true;
     clearPageBtn.disabled = true;
-    clearAllBtn.disabled = true;
     annotationHint.textContent =
-      'Mod Gerak / Skrol aktif. Gerakkan halaman seperti biasa, kemudian pilih Conteng apabila hendak menanda.';
+      'Mod Gerak / Skrol aktif. Pilih Conteng untuk menanda atau Pemadam Manual untuk memadam bahagian tertentu.';
     tutupPratontonPenuh();
     mappingList.innerHTML = '<div class="small">Belum ada dokumen dianalisis.</div>';
 
