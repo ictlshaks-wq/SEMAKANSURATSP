@@ -8,11 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-  <!-- PDF.js untuk membaca teks PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
-
-  <!-- pdf-lib untuk menambah status/catatan pada PDF -->
+<!-- pdf-lib untuk menambah status/catatan pada PDF -->
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
 
@@ -890,7 +886,7 @@
   </style>
 
 </head>
-<body>
+<body data-app-version="7.1-mobile-compatible">
 
 <header class="app-header">
   <div class="header-inner">
@@ -1091,7 +1087,7 @@
 </main>
 
 <footer class="app-footer">
-  <span>Sistem Semakan Surat SP • Sektor Pembelajaran, Jabatan Pendidikan Negeri Pahang • 2026</span>
+  <span>Sistem Semakan Surat SP • Sektor Pembelajaran, Jabatan Pendidikan Negeri Pahang • 2026 • Versi 7.1</span>
 </footer>
 
 <div class="fullscreen-preview" id="fullscreenPreview" aria-hidden="true">
@@ -1105,11 +1101,30 @@
   <iframe id="fullscreenPdfFrame" class="fullscreen-frame"></iframe>
 </div>
 
+
+<script>
+  /*
+   * Lapisan keserasian untuk pelayar telefon yang belum menyokong
+   * Promise.withResolvers(), termasuk sesetengah versi Samsung Internet.
+   */
+  if (typeof Promise.withResolvers !== 'function') {
+    Promise.withResolvers = function () {
+      let resolve;
+      let reject;
+      const promise = new Promise(function (res, rej) {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    };
+  }
+</script>
+
 <script type="module">
-  import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
+  import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/legacy/build/pdf.min.mjs';
 
   pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/legacy/build/pdf.worker.min.mjs';
 
   const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
 
