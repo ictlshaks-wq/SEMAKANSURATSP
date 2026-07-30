@@ -1223,7 +1223,7 @@
   </style>
 
 </head>
-<body data-app-version="9.5-centered-compact-fullscreen">
+<body data-app-version="9.6-reviewer-list">
 
 <header class="app-header">
   <div class="header-inner">
@@ -1467,7 +1467,7 @@
 </main>
 
 <footer class="app-footer">
-  <span>Sistem Semakan Surat SP • Sektor Pembelajaran, Jabatan Pendidikan Negeri Pahang • 2026 • Versi 9.5</span>
+  <span>Sistem Semakan Surat SP • Sektor Pembelajaran, Jabatan Pendidikan Negeri Pahang • 2026 • Versi 9.6</span>
 </footer>
 
 <div class="fullscreen-preview" id="fullscreenPreview" aria-hidden="true">
@@ -1588,33 +1588,53 @@
    * Initial akan dijana secara automatik.
    */
   const SENARAI_PENYEMAK = [
-    {nama: 'En Yusof bin Kassim',
-      jawatan: 'Timbalan Pengarah, Sektor Pembelajaran'}
-    { nama: 'Pn Hajah Noor Siah binti Md Top',
-      jawatan: 'KPPK, Sektor Pembelajaran'}
-    {nama: 'Pn Zalina binti Zulkifly',
-      jawatan: 'KPPK, Sektor Pembelajaran'}
-    { nama: 'Tn Haji Suhaidi bin Mohd Nordin',
-      jawatan: 'KPPK, Sektor Pembelajaran'}
-    {nama: 'Pn Jalilah binti Salim',
-      jawatan: 'KPPK, Sektor Pembelajaran'}
-    { nama: 'Pn Hazlina binti Mohamad Sood',
-      jawatan: 'KPPK, Sektor Pembelajaran'}
-    {nama: 'En Mohammad Dzulkhairy bin Abdul Rahman',
-      jawatan: 'KPPK, Sektor Pembelajaran'}
-    { nama: 'En Mat Ganti bin Mansor',
-      jawatan: 'KPP, Sektor Pembelajaran'}
-    {nama: 'Pn Masrinawati binti Ariffin',
-      jawatan: 'KPP, Sektor Pembelajaran'}
-      { nama: 'En Ahmad Bushra bin Abdul Rahman',
-      jawatan: 'KPP, Sektor Pembelajaran'}
+    {
+      nama: 'En Yusof bin Kassim',
+      jawatan: 'Timbalan Pengarah, Sektor Pembelajaran'
+    },
+    {
+      nama: 'Pn Hajah Noor Siah binti Md Top',
+      jawatan: 'KPPK, Sektor Pembelajaran'
+    },
+    {
+      nama: 'Pn Zalina binti Zulkifly',
+      jawatan: 'KPPK, Sektor Pembelajaran'
+    },
+    {
+      nama: 'Tn Haji Suhaidi bin Mohd Nordin',
+      jawatan: 'KPPK, Sektor Pembelajaran'
+    },
+    {
+      nama: 'Pn Jalilah binti Salim',
+      jawatan: 'KPPK, Sektor Pembelajaran'
+    },
+    {
+      nama: 'Pn Hazlina binti Mohamad Sood',
+      jawatan: 'KPPK, Sektor Pembelajaran'
+    },
+    {
+      nama: 'En Mohammad Dzulkhairy bin Abdul Rahman',
+      jawatan: 'KPPK, Sektor Pembelajaran'
+    },
+    {
+      nama: 'En Mat Ganti bin Mansor',
+      jawatan: 'KPP, Sektor Pembelajaran'
+    },
+    {
+      nama: 'Pn Masrinawati binti Ariffin',
+      jawatan: 'KPP, Sektor Pembelajaran'
+    },
+    {
+      nama: 'En Ahmad Bushra bin Abdul Rahman',
+      jawatan: 'KPP, Sektor Pembelajaran'
+    }
   ];
 
   function janaInitial(nama) {
     const perkataanDikecualikan = new Set([
       'bin', 'binti', 'bt', 'b', 'a/l', 'a/p', 'anak',
       'ibn', 'al', 'abd', 'dan',
-      'en', 'encik', 'pn', 'puan', 'tuan', 'cik',
+      'en', 'encik', 'pn', 'puan', 'tn', 'tuan', 'cik',
       'dr', 'ts', 'ir', 'hj', 'haji', 'hjh', 'hajah',
       'dato', 'dato’', "dato'", 'datuk', 'tan', 'sri'
     ]);
