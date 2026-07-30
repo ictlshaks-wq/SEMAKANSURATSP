@@ -467,6 +467,7 @@
     }
 
     .pdf-page{
+      position:relative;
       width:max-content;
       max-width:100%;
       margin:0 auto 14px;
@@ -477,15 +478,103 @@
       box-shadow:0 4px 16px rgba(15,31,58,.18);
     }
 
+    .annotation-layer{
+      position:absolute;
+      inset:0;
+      z-index:4;
+      display:block;
+      width:100%;
+      height:100%;
+      pointer-events:none;
+      touch-action:auto;
+      cursor:default;
+      background:transparent !important;
+    }
+
+    .annotation-layer.active{
+      pointer-events:auto;
+      touch-action:none;
+      cursor:crosshair;
+    }
+
+    .annotation-toolbar{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      padding:10px 14px;
+      background:#fff;
+      border-bottom:1px solid var(--line);
+    }
+
+    .annotation-toolbar .tool-label{
+      margin-right:auto;
+      color:#344054;
+      font-size:10px;
+      font-weight:700;
+    }
+
+    .annotation-toolbar button{
+      min-height:36px;
+      padding:7px 11px;
+    }
+
+    .btn-annotate{
+      color:#fff;
+      background:linear-gradient(135deg,#dc2626,#b91c1c);
+    }
+
+    .btn-annotate.active{
+      box-shadow:0 0 0 4px rgba(220,38,38,.16);
+    }
+
+    .btn-tool{
+      color:#344054;
+      background:#eef2f7;
+      border:1px solid #d9e2ee;
+    }
+
+    .pen-size-wrap{
+      display:flex;
+      align-items:center;
+      gap:7px;
+      color:#475467;
+      font-size:10px;
+      font-weight:600;
+    }
+
+    .pen-size-wrap input{
+      width:84px;
+      min-height:auto;
+      height:auto;
+      padding:0;
+      accent-color:#dc2626;
+    }
+
+    .annotation-hint{
+      width:100%;
+      color:var(--muted);
+      font-size:9px;
+      line-height:1.5;
+    }
+
     .pdf-page:last-child{
       margin-bottom:0;
     }
 
-    .pdf-page canvas{
+    /* Kanvas asal PDF sahaja menggunakan latar putih. */
+    .pdf-page > canvas:not(.annotation-layer){
       display:block;
       max-width:none;
       height:auto;
       background:#fff;
+    }
+
+    /* Lapisan conteng mesti telus supaya kandungan surat kekal kelihatan. */
+    .pdf-page > canvas.annotation-layer{
+      display:block;
+      max-width:none;
+      background:transparent !important;
     }
 
     .pdf-render-status{
@@ -930,6 +1019,28 @@
       .preview-actions{width:100%}
       .preview-actions button{flex:1}
 
+      .annotation-toolbar{
+        align-items:stretch;
+      }
+
+      .annotation-toolbar .tool-label{
+        width:100%;
+        margin-right:0;
+      }
+
+      .annotation-toolbar button{
+        flex:1 1 42%;
+      }
+
+      .pen-size-wrap{
+        width:100%;
+        justify-content:space-between;
+      }
+
+      .pen-size-wrap input{
+        flex:1;
+      }
+
       .fullscreen-toolbar{
         align-items:flex-start;
         flex-direction:column;
@@ -950,7 +1061,7 @@
   </style>
 
 </head>
-<body data-app-version="8.0-canvas-preview">
+<body data-app-version="9.1-transparent-annotation-fix">
 
 <header class="app-header">
   <div class="header-inner">
@@ -1093,6 +1204,32 @@
           <button class="btn-reset" id="resetBtn">Set Semula</button>
         </div>
       </div>
+
+      <div class="annotation-toolbar">
+        <span class="tool-label">Alat Menanda Surat</span>
+        <button type="button" class="btn-annotate" id="annotateBtn" disabled>
+          Aktifkan Conteng
+        </button>
+        <button type="button" class="btn-tool" id="undoAnnotationBtn" disabled>
+          Undur
+        </button>
+        <button type="button" class="btn-tool" id="clearPageBtn" disabled>
+          Padam Halaman
+        </button>
+        <button type="button" class="btn-tool" id="clearAllBtn" disabled>
+          Padam Semua
+        </button>
+
+        <label class="pen-size-wrap">
+          Ketebalan
+          <input type="range" id="penSize" min="2" max="10" value="4">
+        </label>
+
+        <div class="annotation-hint" id="annotationHint">
+          Aktifkan mod conteng untuk membulat, menggaris atau menanda bahagian yang perlu dibetulkan.
+        </div>
+      </div>
+
       <div id="previewPlaceholder" class="placeholder">
         <div>
           <div class="placeholder-visual" aria-hidden="true">
@@ -1151,7 +1288,7 @@
 </main>
 
 <footer class="app-footer">
-  <span>Sistem Semakan Surat SP • Sektor Pembelajaran, Jabatan Pendidikan Negeri Pahang • 2026 • Versi 8.0</span>
+  <span>Sistem Semakan Surat SP • Sektor Pembelajaran, Jabatan Pendidikan Negeri Pahang • 2026 • Versi 9.1</span>
 </footer>
 
 <div class="fullscreen-preview" id="fullscreenPreview" aria-hidden="true">
@@ -1207,7 +1344,11 @@
     passwordUnlocked: false,
     pdfDocument: null,
     fullscreenZoom: 1,
-    fullscreenRendered: false
+    fullscreenRendered: false,
+    annotationMode: false,
+    activeAnnotationPage: 1,
+    annotations: {},
+    currentStroke: null
   };
 
   // Kata laluan keputusan.
@@ -1297,6 +1438,13 @@
   const zoomInBtn = document.getElementById('zoomInBtn');
   const zoomValue = document.getElementById('zoomValue');
 
+  const annotateBtn = document.getElementById('annotateBtn');
+  const undoAnnotationBtn = document.getElementById('undoAnnotationBtn');
+  const clearPageBtn = document.getElementById('clearPageBtn');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  const penSize = document.getElementById('penSize');
+  const annotationHint = document.getElementById('annotationHint');
+
   muatSenaraiPenyemak();
   document.getElementById('reviewerSelect')
     .addEventListener('change', kemasKiniPenyemak);
@@ -1359,6 +1507,11 @@
 
   zoomOutBtn.addEventListener('click', () => ubahZum(-0.15));
   zoomInBtn.addEventListener('click', () => ubahZum(0.15));
+
+  annotateBtn.addEventListener('click', toggleAnnotationMode);
+  undoAnnotationBtn.addEventListener('click', undoAnnotation);
+  clearPageBtn.addEventListener('click', clearCurrentPageAnnotations);
+  clearAllBtn.addEventListener('click', clearAllAnnotations);
 
   openExternalBtn.addEventListener('click', () => {
     if (state.blobUrl) {
@@ -1450,6 +1603,10 @@
       state.pdfDocument = null;
       state.fullscreenZoom = 1;
       state.fullscreenRendered = false;
+      state.annotationMode = false;
+      state.activeAnnotationPage = 1;
+      state.annotations = {};
+      state.currentStroke = null;
 
       decisionPassword.value = '';
       decisionPassword.type = 'password';
@@ -1482,6 +1639,8 @@
       await renderPdfPages(state.pdfDocument, pdfPreview, false);
 
       fullPreviewBtn.disabled = false;
+      annotateBtn.disabled = false;
+      kemasKiniButangAnotasi();
 
       state.extractedText = await extractPdfText(state.pdfDocument);
       state.mappings = mapLetterElements(state.extractedText);
@@ -1541,7 +1700,26 @@
 
       const pageWrap = document.createElement('div');
       pageWrap.className = 'pdf-page';
+      pageWrap.dataset.pageNumber = String(pageNo);
       pageWrap.appendChild(canvas);
+
+      const annotationCanvas = document.createElement('canvas');
+      annotationCanvas.className = 'annotation-layer';
+      annotationCanvas.dataset.pageNumber = String(pageNo);
+      annotationCanvas.width = cssWidth;
+      annotationCanvas.height = cssHeight;
+      annotationCanvas.style.width = `${cssWidth}px`;
+      annotationCanvas.style.height = `${cssHeight}px`;
+
+      if (state.annotationMode && !fullscreenMode) {
+        annotationCanvas.classList.add('active');
+      }
+
+      if (!fullscreenMode) {
+        pasangEventAnotasi(annotationCanvas);
+      }
+
+      pageWrap.appendChild(annotationCanvas);
       container.appendChild(pageWrap);
 
       await page.render({
@@ -1551,7 +1729,189 @@
       }).promise;
 
       page.cleanup();
+      lukisSemulaAnotasi(annotationCanvas, pageNo);
     }
+  }
+
+  function toggleAnnotationMode() {
+    if (!state.pdfDocument) return;
+
+    state.annotationMode = !state.annotationMode;
+    annotateBtn.classList.toggle('active', state.annotationMode);
+    annotateBtn.textContent = state.annotationMode
+      ? 'Tutup Mod Conteng'
+      : 'Aktifkan Conteng';
+
+    annotationHint.textContent = state.annotationMode
+      ? 'Mod conteng aktif. Gunakan jari atau tetikus untuk menanda surat. Tatal halaman selepas menutup mod conteng.'
+      : 'Aktifkan mod conteng untuk membulat, menggaris atau menanda bahagian yang perlu dibetulkan.';
+
+    pdfPreview.querySelectorAll('.annotation-layer').forEach(layer => {
+      layer.classList.toggle('active', state.annotationMode);
+    });
+
+    kemasKiniButangAnotasi();
+  }
+
+  function pasangEventAnotasi(canvas) {
+    canvas.addEventListener('pointerdown', mulaConteng);
+    canvas.addEventListener('pointermove', gerakConteng);
+    canvas.addEventListener('pointerup', tamatConteng);
+    canvas.addEventListener('pointercancel', tamatConteng);
+    canvas.addEventListener('pointerleave', event => {
+      if (state.currentStroke && event.buttons === 0) tamatConteng(event);
+    });
+  }
+
+  function dapatKoordinatNormal(canvas, event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
+      y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
+    };
+  }
+
+  function mulaConteng(event) {
+    if (!state.annotationMode) return;
+
+    event.preventDefault();
+    const canvas = event.currentTarget;
+    const pageNo = Number(canvas.dataset.pageNumber);
+    state.activeAnnotationPage = pageNo;
+
+    if (!state.annotations[pageNo]) state.annotations[pageNo] = [];
+
+    const point = dapatKoordinatNormal(canvas, event);
+    state.currentStroke = {
+      pageNo,
+      color: '#dc2626',
+      widthNorm: Number(penSize.value) / canvas.getBoundingClientRect().width,
+      points: [point]
+    };
+
+    canvas.setPointerCapture?.(event.pointerId);
+    kemasKiniButangAnotasi();
+  }
+
+  function gerakConteng(event) {
+    if (!state.annotationMode || !state.currentStroke) return;
+
+    const canvas = event.currentTarget;
+    const pageNo = Number(canvas.dataset.pageNumber);
+    if (pageNo !== state.currentStroke.pageNo) return;
+
+    event.preventDefault();
+    state.currentStroke.points.push(dapatKoordinatNormal(canvas, event));
+    lukisSemulaAnotasi(canvas, pageNo, state.currentStroke);
+  }
+
+  function tamatConteng(event) {
+    if (!state.currentStroke) return;
+
+    const stroke = state.currentStroke;
+    const pageNo = stroke.pageNo;
+
+    if (stroke.points.length === 1) {
+      const p = stroke.points[0];
+      stroke.points.push({ x: p.x + 0.001, y: p.y + 0.001 });
+    }
+
+    if (!state.annotations[pageNo]) state.annotations[pageNo] = [];
+    state.annotations[pageNo].push(stroke);
+    state.currentStroke = null;
+
+    const canvas = pdfPreview.querySelector(
+      `.annotation-layer[data-page-number="${pageNo}"]`
+    );
+    if (canvas) lukisSemulaAnotasi(canvas, pageNo);
+
+    kemasKiniButangAnotasi();
+  }
+
+  function lukisSemulaAnotasi(canvas, pageNo, liveStroke = null) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const strokes = [
+      ...(state.annotations[pageNo] || []),
+      ...(liveStroke ? [liveStroke] : [])
+    ];
+
+    strokes.forEach(stroke => lukisStroke(ctx, canvas, stroke));
+  }
+
+  function lukisStroke(ctx, canvas, stroke) {
+    if (!stroke.points || stroke.points.length < 2) return;
+
+    ctx.save();
+    ctx.strokeStyle = stroke.color || '#dc2626';
+    ctx.lineWidth = Math.max(1.5, stroke.widthNorm * canvas.width);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+
+    stroke.points.forEach((point, index) => {
+      const x = point.x * canvas.width;
+      const y = point.y * canvas.height;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function undoAnnotation() {
+    const pageNo = state.activeAnnotationPage;
+    const strokes = state.annotations[pageNo] || [];
+    if (!strokes.length) return;
+
+    strokes.pop();
+    const canvas = pdfPreview.querySelector(
+      `.annotation-layer[data-page-number="${pageNo}"]`
+    );
+    if (canvas) lukisSemulaAnotasi(canvas, pageNo);
+    kemasKiniButangAnotasi();
+  }
+
+  function clearCurrentPageAnnotations() {
+    const pageNo = state.activeAnnotationPage;
+    if (!(state.annotations[pageNo] || []).length) return;
+
+    if (!confirm(`Padam semua contengan pada halaman ${pageNo}?`)) return;
+
+    state.annotations[pageNo] = [];
+    const canvas = pdfPreview.querySelector(
+      `.annotation-layer[data-page-number="${pageNo}"]`
+    );
+    if (canvas) lukisSemulaAnotasi(canvas, pageNo);
+    kemasKiniButangAnotasi();
+  }
+
+  function clearAllAnnotations() {
+    if (!adaAnotasi()) return;
+    if (!confirm('Padam semua contengan pada seluruh surat?')) return;
+
+    state.annotations = {};
+    pdfPreview.querySelectorAll('.annotation-layer').forEach(canvas => {
+      const pageNo = Number(canvas.dataset.pageNumber);
+      lukisSemulaAnotasi(canvas, pageNo);
+    });
+    kemasKiniButangAnotasi();
+  }
+
+  function adaAnotasi() {
+    return Object.values(state.annotations).some(strokes => strokes.length > 0);
+  }
+
+  function kemasKiniButangAnotasi() {
+    const hasPdf = Boolean(state.pdfDocument);
+    const pageStrokes = state.annotations[state.activeAnnotationPage] || [];
+
+    annotateBtn.disabled = !hasPdf;
+    undoAnnotationBtn.disabled = !hasPdf || pageStrokes.length === 0;
+    clearPageBtn.disabled = !hasPdf || pageStrokes.length === 0;
+    clearAllBtn.disabled = !hasPdf || !adaAnotasi();
   }
 
   async function extractPdfText(pdf) {
@@ -1860,6 +2220,8 @@
         });
       }
 
+      await tambahAnotasiKePdf(pdfDoc);
+
       // Metadata ringkas
       pdfDoc.setTitle(subject || state.file.name);
       pdfDoc.setSubject(`Semakan surat: ${state.status}`);
@@ -1893,6 +2255,44 @@
       showMessage(err.message || 'PDF gagal dijana.', 'error');
     } finally {
       hideLoader();
+    }
+  }
+
+  async function tambahAnotasiKePdf(pdfDoc) {
+    if (!adaAnotasi()) return;
+
+    const pages = pdfDoc.getPages();
+
+    for (const [pageKey, strokes] of Object.entries(state.annotations)) {
+      if (!strokes || !strokes.length) continue;
+
+      const pageNo = Number(pageKey);
+      const page = pages[pageNo - 1];
+      if (!page) continue;
+
+      const { width, height } = page.getSize();
+      const tempWidth = 1200;
+      const tempHeight = Math.round(tempWidth * (height / width));
+
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = tempWidth;
+      tempCanvas.height = tempHeight;
+
+      const ctx = tempCanvas.getContext('2d');
+      ctx.clearRect(0, 0, tempWidth, tempHeight);
+
+      strokes.forEach(stroke => lukisStroke(ctx, tempCanvas, stroke));
+
+      const pngDataUrl = tempCanvas.toDataURL('image/png');
+      const pngBytes = await fetch(pngDataUrl).then(r => r.arrayBuffer());
+      const pngImage = await pdfDoc.embedPng(pngBytes);
+
+      page.drawImage(pngImage, {
+        x: 0,
+        y: 0,
+        width,
+        height
+      });
     }
   }
 
@@ -2034,6 +2434,10 @@
     state.pdfDocument = null;
     state.fullscreenZoom = 1;
     state.fullscreenRendered = false;
+    state.annotationMode = false;
+    state.activeAnnotationPage = 1;
+    state.annotations = {};
+    state.currentStroke = null;
 
     pdfInput.value = '';
     fileName.textContent = 'Belum ada fail dipilih.';
@@ -2043,6 +2447,14 @@
     fullscreenPdfFrame.innerHTML = '';
     zoomValue.textContent = '100%';
     fullPreviewBtn.disabled = true;
+    annotateBtn.disabled = true;
+    annotateBtn.classList.remove('active');
+    annotateBtn.textContent = 'Aktifkan Conteng';
+    undoAnnotationBtn.disabled = true;
+    clearPageBtn.disabled = true;
+    clearAllBtn.disabled = true;
+    annotationHint.textContent =
+      'Aktifkan mod conteng untuk membulat, menggaris atau menanda bahagian yang perlu dibetulkan.';
     tutupPratontonPenuh();
     mappingList.innerHTML = '<div class="small">Belum ada dokumen dianalisis.</div>';
 
